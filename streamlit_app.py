@@ -42,8 +42,6 @@ def run():
         image = preprocess_image(uploaded_file)
         st.image(image.squeeze(), caption='Uploaded Skin Image', use_column_width=True)
         prediction = model.predict(image)
-        mask_image = postprocess_prediction(prediction)
-        st.image(mask_image, caption='Predicted Lesion Mask', use_column_width=True)
         st.image(prediction)
 
 
