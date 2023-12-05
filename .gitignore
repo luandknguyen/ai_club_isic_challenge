@@ -1,3 +1,4 @@
 datasets/
 downloads/
 results/
+__pycache__/

@@ -1,6 +1,7 @@
 # %%
 
 import random
+import gc
 
 import numpy
 import tensorflow as tf
@@ -16,15 +17,15 @@ print(tf.config.list_physical_devices("GPU"))
 # For seed sync
 random.seed()
 
-RAW_WIDTH = 256
-RAW_HEIGHT = 256
+RAW_WIDTH = 512
+RAW_HEIGHT = 512
 RAW_SIZE = (RAW_WIDTH, RAW_HEIGHT)
-WIDTH = 256
-HEIGHT = 256
+WIDTH = 512
+HEIGHT = 512
 SIZE = (WIDTH, HEIGHT)
 INPUTS_DIR = "datasets/training/images/"
 LABELS_DIR = "datasets/training/segmentation/"
-BATCH_SIZE = 50
+BATCH_SIZE = 20
 
 # %% Load dataset
 
@@ -41,6 +42,8 @@ input_images = utils.image_dataset_from_directory(
     seed=seed
 )
 
+input_images = input_images.cache()
+
 label_images = utils.image_dataset_from_directory(
     LABELS_DIR,
     labels=None,
@@ -51,6 +54,8 @@ label_images = utils.image_dataset_from_directory(
     interpolation="nearest",
     seed=seed
 )
+
+label_images = label_images.cache()
 
 # %%
 
@@ -91,20 +96,20 @@ class Preprocessing():
         numpy.random.shuffle(index)
         # Inputs
         x = self.scale(inputs)
-        # x = self.rotate_x(x)
-        # x = self.crop_x(x)
-        # x = tf.repeat(x, repeats=2, axis=0)
-        # x = self.brightness(x)
-        # x = self.contrast(x)
-        # x = self.flip_x(x)
-        # x = tf.convert_to_tensor(x.numpy()[index])
+        x = self.rotate_x(x)
+        #x = self.crop_x(x)
+        x = tf.repeat(x, repeats=2, axis=0)
+        x = self.brightness(x)
+        x = self.contrast(x)
+        x = self.flip_x(x)
+        x = tf.convert_to_tensor(x.numpy()[index])
         # Labels
         y = self.scale(labels)
-        # y = self.rotate_y(y)
-        # y = self.crop_y(y)
-        # y = tf.repeat(y, repeats=2, axis=0)
-        # y = self.flip_y(y)
-        # y = tf.convert_to_tensor(y.numpy()[index], dtype="int8")
+        y = self.rotate_y(y)
+        #y = self.crop_y(y)
+        y = tf.repeat(y, repeats=2, axis=0)
+        y = self.flip_y(y)
+        y = tf.convert_to_tensor(y.numpy()[index], dtype="int8")
         return (x, y)
 
 
@@ -117,10 +122,12 @@ iou_history = []
 
 for epoch in range(EPOCH):
     print(f"=== Epoch {epoch} ===")
-    for (inputs, labels) in tqdm(tf.data.Dataset.zip((input_images, label_images))):
+    zipped = tf.data.Dataset.zip((input_images, label_images))
+    for (inputs, labels) in tqdm(zipped):
         inputs, labels = preprocessing(inputs, labels)
         history = model.fit(inputs, labels, verbose=0)
         iou_history.append(history.history["binary_io_u"])
+    gc.collect()
 
 # %%
 
