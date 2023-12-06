@@ -58,9 +58,7 @@ label_images = utils.image_dataset_from_directory(
 model = UNet()
 model.compile(
     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-    loss=losses.BinaryFocalCrossentropy(
-        apply_class_balancing=True
-    ),
+    loss=losses.BinaryCrossentropy(),
     metrics=[
         "BinaryAccuracy",
         "BinaryIoU"
