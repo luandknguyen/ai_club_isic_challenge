@@ -69,9 +69,9 @@ class Encoder(layers.Layer):
     def __init__(self):
         super().__init__()
         self.block_1 = EncoderBlock(8)
-        self.block_2 = EncoderBlock(16)
-        self.block_3 = EncoderBlock(32)
-        self.block_4 = EncoderBlock(64, max_pooling=False)
+        self.block_2 = EncoderBlock(12)
+        self.block_3 = EncoderBlock(16)
+        self.block_4 = EncoderBlock(32, max_pooling=False)
         
     def call(self, inputs, *args, **kwargs):
         matrix, skip_1 = self.block_1(inputs)
@@ -84,8 +84,8 @@ class Encoder(layers.Layer):
 class Decoder(layers.Layer):
     def __init__(self):
         super().__init__()
-        self.block_1 = DecoderBlock(32)
-        self.block_2 = DecoderBlock(16)
+        self.block_1 = DecoderBlock(16)
+        self.block_2 = DecoderBlock(12)
         self.block_3 = DecoderBlock(8)
         self.conv_out = layers.Conv2DTranspose(
             1, kernel_size=3, activation='sigmoid', padding='same')
