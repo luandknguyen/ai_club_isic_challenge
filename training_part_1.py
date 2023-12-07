@@ -20,12 +20,13 @@ random.seed()
 RAW_WIDTH = 512
 RAW_HEIGHT = 512
 RAW_SIZE = (RAW_WIDTH, RAW_HEIGHT)
-WIDTH = 512
-HEIGHT = 512
+WIDTH = 256
+HEIGHT = 256
 SIZE = (WIDTH, HEIGHT)
 INPUTS_DIR = "datasets/training/images/"
 LABELS_DIR = "datasets/training/segmentation/"
-BATCH_SIZE = 20
+BATCH_SIZE = 50
+SAVED_FILE = f"saved/v1/weights_{WIDTH}_{HEIGHT}.h5"
 
 # %% Load dataset
 
@@ -63,12 +64,17 @@ label_images = label_images.cache()
 model = UNet()
 model.compile(
     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-    loss=losses.BinaryCrossentropy(),
+    loss=losses.BinaryFocalCrossentropy(
+        apply_class_balancing=False,
+        alpha=0.25,
+        gamma=2.0
+    ),
     metrics=[
         "BinaryAccuracy",
         "BinaryIoU"
     ]
 )
+model(layers.Input((WIDTH, HEIGHT, 3)))
 
 # %%
 
@@ -95,7 +101,7 @@ class Preprocessing():
         # Inputs
         x = self.scale(inputs)
         x = self.rotate_x(x)
-        #x = self.crop_x(x)
+        x = self.crop_x(x)
         x = tf.repeat(x, repeats=2, axis=0)
         x = self.brightness(x)
         x = self.contrast(x)
@@ -104,7 +110,7 @@ class Preprocessing():
         # Labels
         y = self.scale(labels)
         y = self.rotate_y(y)
-        #y = self.crop_y(y)
+        y = self.crop_y(y)
         y = tf.repeat(y, repeats=2, axis=0)
         y = self.flip_y(y)
         y = tf.convert_to_tensor(y.numpy()[index], dtype="int8")
@@ -115,7 +121,7 @@ preprocessing = Preprocessing()
 
 # %%
 
-EPOCH = 10
+EPOCH = 25
 iou_history = []
 
 for epoch in range(EPOCH):
@@ -129,4 +135,4 @@ for epoch in range(EPOCH):
 
 # %%
 
-model.save_weights("saved/v1/weights.h5", save_format="h5")
+model.save_weights(SAVED_FILE, save_format="h5")

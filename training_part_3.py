@@ -1,11 +1,12 @@
 # %%
 
 import random
-import csv
+import gc
 
 import numpy
+import pandas
 import tensorflow as tf
-from keras import layers, utils, losses
+from keras import layers, utils, losses, metrics
 from matplotlib import pyplot
 from tqdm import tqdm
 
@@ -25,31 +26,28 @@ HEIGHT = 256
 SIZE = (WIDTH, HEIGHT)
 INPUTS_DIR = "datasets/training/images/"
 LABELS_FILE = "datasets/training/classification.csv"
+META_FILE = "datasets/training/metadata.csv"
 BATCH_SIZE = 50
+SAVED_FILE = f"saved/v1/weights_{WIDTH}_{HEIGHT}.h5"
+SAVED_FILE_2 = f"saved/p3/weights_{WIDTH}_{HEIGHT}.h5"
 
 # %%
 
-with open(LABELS_FILE, mode="r", encoding="utf8") as file:
-    reader = csv.reader(file)
-    next(reader) # skip header
-    index = list(reader)
-    target = numpy.array(list(map(
-        lambda x: [float(x[1]) > 0.5, float(x[2]) > 0.5],
-        index
-    )))
-    index = list(map(
-        lambda x: INPUTS_DIR + x[0] + ".jpg",
-        index
-    ))
+target = pandas.read_csv(LABELS_FILE, header=0)
+metadata = pandas.read_csv(META_FILE, header=0)
+data = pandas.merge(target, metadata, on="image_id")
+data['age_approximate'] = data['age_approximate'].map(lambda x: float(x) if x != 'unknown' else -1.0)
+data['male'] = (data['sex'] == 'male').astype(float)
+data['female'] = (data['sex'] == 'female').astype(float)
+metadata = data[['age_approximate', 'male', 'female']].to_numpy()
+target = data[['melanoma', 'seborrheic_keratosis']].to_numpy()
+images = (INPUTS_DIR + data['image_id'] + '.jpg').to_list()
 
 # %%
 
 seg_model = UNet()
 seg_model(layers.Input((WIDTH, HEIGHT, 3)))
-
-# %%
-
-seg_model.load_weights("saved/v1/weights.h5")
+seg_model.load_weights(SAVED_FILE)
 
 # %%
 
@@ -59,15 +57,15 @@ cls_model.compile(
     loss=losses.BinaryCrossentropy(),
     metrics=[
         "CategoricalAccuracy",
-        "F1Score"
+        "FalseNegatives"
     ]
 )
-cls_model(layers.Input((WIDTH, HEIGHT, 3)))
+cls_model((layers.Input((WIDTH, HEIGHT, 3)), layers.Input(3)))
 cls_model.encoder.set_weights(seg_model.encoder.get_weights())
 
 # %%
 
-# random.shuffle(index)
+seed = random.randint(0, 2**32 - 1)
 
 def load_image(path):
     file = tf.io.read_file(path)
@@ -75,16 +73,30 @@ def load_image(path):
     image = tf.image.resize(image, size=RAW_SIZE)
     return image
 
-paths_ds = tf.data.Dataset.from_tensor_slices(index)
-
-ds = paths_ds.map(load_image)
-inputs_ds = ds.batch(BATCH_SIZE).cache()
+paths_ds = tf.data.Dataset.from_tensor_slices(images)
+inputs_ds = paths_ds.map(load_image)
+inputs_ds = inputs_ds.shuffle(BATCH_SIZE * 8, seed=seed).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE).cache()
 
 labels_ds = tf.data.Dataset.from_tensor_slices(target)
-labels_ds = labels_ds.batch(BATCH_SIZE).cache()
+labels_ds = labels_ds.shuffle(BATCH_SIZE * 8, seed=seed).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE).cache()
+
+metadata_ds = tf.data.Dataset.from_tensor_slices(metadata)
+metadata_ds = metadata_ds.shuffle(BATCH_SIZE * 8, seed=seed).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE).cache()
 
 # %%
 
-zipped = tf.data.Dataset.zip(inputs_ds, labels_ds)
-for (inputs, labels) in zipped:
-    cls_model.train(inputs, labels)
+EPOCH = 25
+loss_history = []
+
+for epoch in range(EPOCH):
+    print(f"=== Epoch {epoch} ===")
+    zipped = tf.data.Dataset.zip((inputs_ds, labels_ds, metadata_ds)).shuffle(BATCH_SIZE * 2)
+    for (inputs, labels, metadata) in tqdm(zipped):
+        inputs = inputs / 255
+        history = cls_model.fit((inputs, metadata), labels, verbose=0)
+        loss_history.append(history.history["loss"])
+    gc.collect()
+
+# %%
+
+cls_model.save_weights(SAVED_FILE_2, save_format="h5")
