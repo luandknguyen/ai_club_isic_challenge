@@ -39,8 +39,9 @@ data = pandas.merge(target, metadata, on="image_id")
 data['age_approximate'] = data['age_approximate'].map(lambda x: float(x) if x != 'unknown' else -1.0)
 data['male'] = (data['sex'] == 'male').astype(float)
 data['female'] = (data['sex'] == 'female').astype(float)
+data['none'] = ((data['melanoma'] < 0.5) & (data['seborrheic_keratosis'] < 0.5)).astype(float)
 metadata = data[['age_approximate', 'male', 'female']].to_numpy()
-target = data[['melanoma', 'seborrheic_keratosis']].to_numpy()
+target = data[['none', 'melanoma', 'seborrheic_keratosis']].to_numpy()
 images = (INPUTS_DIR + data['image_id'] + '.jpg').to_list()
 
 # %%
@@ -54,7 +55,7 @@ seg_model.load_weights(SAVED_FILE)
 cls_model = ClassifierNet()
 cls_model.compile(
     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-    loss=losses.BinaryCrossentropy(),
+    loss=losses.CategoricalCrossentropy(),
     metrics=[
         "CategoricalAccuracy",
         "FalseNegatives"
