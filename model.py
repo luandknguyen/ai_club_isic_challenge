@@ -118,7 +118,7 @@ class ClassifierNet(tf.keras.Model):
         self.flatten = layers.Flatten()
         self.concat = layers.Concatenate()
         self.dense_1 = layers.Dense(20, activation="relu")
-        self.dense_2 = layers.Dense(2, activation="sigmoid")
+        self.dense_2 = layers.Dense(3, activation="softmax")
         
     def call(self, inputs, training=False, mask=None):
         image, metadata = inputs
