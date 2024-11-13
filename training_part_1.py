@@ -78,7 +78,6 @@ model(layers.Input((WIDTH, HEIGHT, 3)))
 
 # %%
 
-
 class Preprocessing():
     def __init__(self):
         seed = random.randint(0, 2**32 - 1)
